@@ -1,0 +1,116 @@
+################################################## USAGE ##############################################
+#
+# Install:
+#   kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.12.0-beta.0/deploy/static/provider/cloud/deploy.yaml
+#   kubectl apply -f mgrpc.yaml
+# Test:
+#   grpcurl -plaintext  --authority ingress1.0x0f.tech 127.0.0.1:80 demo.Demo/Ping
+#   grpcurl -plaintext  --authority ingress2.0x0f.tech 127.0.0.1:80 demo.Demo/Ping
+#
+#######################################################################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: go1-service
+  labels:
+    app: go1-service
+spec:
+  replicas: 1 # 设置服务副本数
+  selector:
+    matchLabels:
+      app: go1-service
+  template:
+    metadata:
+      labels:
+        app: go1-service
+    spec:
+      containers:
+      - name: go1-service
+        image: laotie255/pingpong:grpc1
+        ports:
+        - containerPort: 8080 # Go Zero 服务的端口
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: go1-service
+  labels: 
+    app: go1-service
+spec:
+  selector:
+    app: go1-service
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: grpc
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: go2-service
+  labels:
+    app: go2-service
+spec:
+  replicas: 1 # 设置服务副本数
+  selector:
+    matchLabels:
+      app: go2-service
+  template:
+    metadata:
+      labels:
+        app: go2-service
+    spec:
+      containers:
+      - name: go2-service
+        image: laotie255/pingpong:grpc2
+        ports:
+        - containerPort: 8080 # Go Zero 服务的端口
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: go2-service
+  labels: 
+    app: go2-service
+spec:
+  selector:
+    app: go2-service
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: grpc
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grpc-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: ingress1.0x0f.tech  # 替换为你的域名
+    http:
+      paths:
+      - path: "/"
+        pathType: Prefix
+        backend:
+          service:
+            name: go1-service  # 替换为你的服务名称
+            port:
+              number: 8080       # 替换为你的服务端口
+  - host: ingress2.0x0f.tech  # 替换为你的域名
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: go2-service  # 替换为你的服务名称
+            port:
+              number: 8080       # 替换为你的服务端口
