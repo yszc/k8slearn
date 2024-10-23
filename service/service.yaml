@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flask-api-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flask-api
+  template:
+    metadata:
+      labels:
+        app: flask-api
+    spec:
+      containers:
+      - name: flask-api-container
+        image: laotie255/pingpong:latest  # 镜像名称
+        ports:
+        - containerPort: 5000         # Flask 容器监听的端口
+        resources:
+          requests:
+            memory: "6Gi"  # 请求 4GB 内存
+            cpu: "2"       # 请求 4 个 CPU
+          limits:
+            memory: "2Gi"  # 限制最多使用 4GB 内存
+            cpu: "2"       # 限制最多使用 4 个 CPU
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flask-api-service
+spec:
+  selector:
+    app: flask-api
+  type: LoadBalancer  # 使用 LoadBalancer 暴露服务
+  ports:
+  - protocol: TCP
+    port: 8050           # 外部访问的端口
+    targetPort: 5000   # 容器内部的 Flask 服务端口

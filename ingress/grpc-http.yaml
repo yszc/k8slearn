@@ -1,0 +1,191 @@
+################################################## USAGE ##############################################
+#
+# Install:
+#   kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.12.0-beta.0/deploy/static/provider/cloud/deploy.yaml
+#   kubectl apply -f mgrpc.yaml
+# Test:
+#   grpcurl -plaintext  --authority grpc1.k8s.0x0f.tech 127.0.0.1:80 demo.Demo/Ping
+#   grpcurl -plaintext  --authority grpc2.k8s.0x0f.tech 127.0.0.1:80 demo.Demo/Ping
+#   curl --location '127.0.0.1/ping' --header 'Host: http.k8s.0x0f.tech'
+#
+#######################################################################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: go1-service
+  labels:
+    app: go1-service
+spec:
+  replicas: 1 # 设置服务副本数
+  selector:
+    matchLabels:
+      app: go1-service
+  template:
+    metadata:
+      labels:
+        app: go1-service
+    spec:
+      containers:
+      - name: go1-service
+        image: laotie255/pingpong:grpc
+        ports:
+        - containerPort: 8080 # Go Zero 服务的端口
+        env:
+        - name: ID_INFO
+          value: "10"
+        # resources:
+        #   limits:
+        #     memory: "1Gi"  # 限制最多使用 1GB 内存
+        #     cpu: "1"       # 限制最多使用 1 个 CPU
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: go1-service
+  labels: 
+    app: go1-service
+spec:
+  selector:
+    app: go1-service
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: grpc
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: go2-service
+  labels:
+    app: go2-service
+spec:
+  replicas: 1 # 设置服务副本数
+  selector:
+    matchLabels:
+      app: go2-service
+  template:
+    metadata:
+      labels:
+        app: go2-service
+    spec:
+      containers:
+      - name: go2-service
+        image: laotie255/pingpong:grpc
+        ports:
+        - containerPort: 8080 # Go Zero 服务的端口
+        env:
+        - name: ID_INFO
+          value: "20"
+        # resources:
+        #   limits:
+        #     memory: "1Gi"  # 限制最多使用 1GB 内存
+        #     cpu: "1"       # 限制最多使用 1 个 CPU
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: go2-service
+  labels: 
+    app: go2-service
+spec:
+  selector:
+    app: go2-service
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: grpc
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flask-api-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flask-api
+  template:
+    metadata:
+      labels:
+        app: flask-api
+    spec:
+      containers:
+      - name: flask-api-container
+        image: laotie255/pingpong:http  # 镜像名称
+        ports:
+        - containerPort: 5000         # Flask 容器监听的端口
+        # resources:
+        #   requests:
+        #     memory: "1Gi"  # 请求 4GB 内存
+        #     cpu: "1"       # 请求 4 个 CPU
+        #   limits:
+        #     memory: "1Gi"  # 限制最多使用 4GB 内存
+        #     cpu: "1"       # 限制最多使用 4 个 CPU
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flask-api-service
+spec:
+  selector:
+    app: flask-api
+  ports:
+  - protocol: TCP
+    port: 8050           # 外部访问的端口
+    targetPort: 5000   # 容器内部的 Flask 服务端口
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grpc-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: grpc1.k8s.0x0f.tech  # 替换为你的域名
+    http:
+      paths:
+      - path: "/"
+        pathType: Prefix
+        backend:
+          service:
+            name: go1-service  # 替换为你的服务名称
+            port:
+              number: 8080       # 替换为你的服务端口
+  - host: grpc2.k8s.0x0f.tech  # 替换为你的域名
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: go2-service  # 替换为你的服务名称
+            port:
+              number: 8080       # 替换为你的服务端口
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: http-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: http.k8s.0x0f.tech
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: flask-api-service
+            port:
+              number: 8050

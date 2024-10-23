@@ -1,0 +1,34 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: my-job
+spec:
+  template:
+    spec:
+      containers:
+      - name: my-job-container
+        image: laotie255/pingpong:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 5000  # 定义 HTTP 服务的端口
+        resources:
+          requests:
+            memory: "6Gi"  # 请求 4GB 内存
+            cpu: "2"       # 请求 4 个 CPU
+          limits:
+            memory: "6Gi"  # 限制最多使用 4GB 内存
+            cpu: "2"       # 限制最多使用 4 个 CPU
+      restartPolicy: Never
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-job-service
+spec:
+  selector:
+    job-name: my-job  # 通过 Job 的标签选择 Pod
+  type: LoadBalancer  # 使用 LoadBalancer 暴露服务
+  ports:
+  - protocol: TCP
+    port: 8051
+    targetPort: 5000
